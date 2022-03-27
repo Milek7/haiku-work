@@ -21,7 +21,6 @@ for platform in [ MultiBootSubDirSetup efi ] {
 		crt0-efi-$(TARGET_ARCH).S
 		entry.S
 		transition.S
-		exceptions.S
 		cache.S
 		relocation_func.cpp
 		arch_mmu.cpp

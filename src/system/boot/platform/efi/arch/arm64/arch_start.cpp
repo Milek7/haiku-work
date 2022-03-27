@@ -11,6 +11,7 @@
 #include "efi_platform.h"
 
 #include "aarch64.h"
+#include "serial.h"
 
 extern "C" void arch_enter_kernel(struct kernel_args *kernelArgs,
 	addr_t kernelEntry, addr_t kernelStackTop);
@@ -134,7 +135,6 @@ arch_start_kernel(addr_t kernelEntry)
 	arch_mmu_generate_post_efi_page_tables(
 		memory_map_size, memory_map, descriptor_size, descriptor_version);
 
-	bool el2toel1 = false;
 /*
 *   "The AArch64 exception model is made up of a number of exception levels
 *    (EL0 - EL3), with EL0 and EL1 having a secure and a non-secure
@@ -150,32 +150,21 @@ arch_start_kernel(addr_t kernelEntry)
 *    On AArch64 UEFI shall execute as 64-bit code at either EL1 or EL2,
 *    depending on whether or not virtualization is available at OS load time."
 */
-	if (arch_exception_level() != 1) {
-		dprintf("Current Exception Level EL%1ld\n", arch_exception_level());
-		if (arch_exception_level() == 2) {
-			/* Transitioning from EL we lose present MMU configuration
-			 * which we would like to preserve e.g. peripherals mappings */
-			if (arch_mmu_enabled()) {
-				dprintf("MMU Enabled, Translation Table @ %lx Granularity %s, bits %d\n",
-					arch_mmu_base_register(),
-					granule_type_str(arch_mmu_user_granule()),
-					arch_mmu_user_address_bits());
+	int el = arch_exception_level();
+	dprintf("Current Exception Level EL%1d\n", el);
+	if (el == 1 || el == 2) {
+		if (arch_mmu_enabled()) {
+			dprintf("MMU Enabled, Translation Table @ %lx Granularity %s, bits %d\n",
+				arch_mmu_base_register(),
+				granule_type_str(arch_mmu_user_granule()),
+				arch_mmu_user_address_bits());
 
-				dprintf("Kernel entry accessibility W: %x R: %x\n",
-					arch_mmu_write_access(kernelEntry),
-					arch_mmu_read_access(kernelEntry));
-
-				arch_mmu_dump_present_tables();
-
-				el2toel1 = true; // we want to print before exit services
-			}
-
-		} else {
-			// Not ready, undexpected any transition different than EL2 >> EL1
-			panic("Unexpected Exception Level\n");
+//				arch_mmu_dump_present_tables();
 		}
+	} else {
+		// Not ready, undexpected any transition different than EL2 >> EL1
+		panic("unexpected EL\n");
 	}
-
 
 	// Attempt to fetch the memory map and exit boot services.
 	// This needs to be done in a loop, as ExitBootServices can change the
@@ -193,8 +182,7 @@ arch_start_kernel(addr_t kernelEntry)
 			// The console was provided by boot services, disable it.
 			stdout = NULL;
 			stderr = NULL;
-			// Can we adjust gKernelArgs.platform_args.serial_base_ports[0]
-			// to something fixed in qemu for debugging?
+			serial_switch_to_legacy();
 			break;
 		}
 
@@ -205,26 +193,42 @@ arch_start_kernel(addr_t kernelEntry)
 		}
 	}
 
-	// Update EFI, generate final kernel physical memory map, etc.
-	//arch_mmu_post_efi_setup(memory_map_size, memory_map,
-	//		descriptor_size, descriptor_version);
+	dprintf("Boot services terminated.\n");
 
-	if (el2toel1) {
-		arch_mmu_setup_EL1();
+	arch_mmu_setup_EL1();
+
+	if (el == 2) {
+		dprintf("Performing EL2->EL1 transition...");
+
 		arch_cache_disable();
 
 		_arch_transition_EL2_EL1();
 
 		arch_cache_enable();
+
+		dprintf(" done.\n");
+	} else {
+		dprintf("Already at EL1.\n");
 	}
+
+	// Update EFI, generate final kernel physical memory map, etc.
+	arch_mmu_post_efi_setup(memory_map_size, memory_map,
+			descriptor_size, descriptor_version);
 
 	//smp_boot_other_cpus(final_pml4, kernelEntry, (addr_t)&gKernelArgs);
 
-	if (arch_mmu_read_access(kernelEntry) && arch_mmu_read_access(gKernelArgs.cpu_kstack[0].start)) {
+	bool kernel_acc = arch_mmu_read_access(kernelEntry);
+	bool stack_acc = arch_mmu_read_access(gKernelArgs.cpu_kstack[0].start);
+	if (kernel_acc && stack_acc) {
 		// Enter the kernel!
+		dprintf("Entering kernel!\n");
 		arch_enter_kernel(&gKernelArgs, kernelEntry,
 			gKernelArgs.cpu_kstack[0].start + gKernelArgs.cpu_kstack[0].size - 8);
 	} else {
-		_arch_exception_panic("Kernel or Stack memory not accessible\n", __LINE__);
+		if (!kernel_acc)
+			dprintf("Kernel not accessible!\n");
+		if (!stack_acc)
+			dprintf("Stack not accessible!\n");
+		while(1);
 	}
 }

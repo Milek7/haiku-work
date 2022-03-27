@@ -111,8 +111,12 @@ arch_mmu_dump_present_tables()
 
 void arch_mmu_setup_EL1() {
 
-	// Inherit TCR from EL2
-	uint64 tcr = READ_SPECIALREG(TCR_EL2);
+	// Possibly inherit TCR from EL2
+	uint64 tcr;
+	if (arch_exception_level() == 2)
+		tcr = READ_SPECIALREG(TCR_EL2);
+	else
+		tcr = READ_SPECIALREG(TCR_EL1);
 
 	// Enable TTBR1
 	tcr &= ~TCR_EPD1_DISABLE;
@@ -121,6 +125,8 @@ void arch_mmu_setup_EL1() {
 	tcr &= ~T1SZ_MASK; // Clear
 	// TODO: Compiler dependency?
 	tcr |= TCR_T1SZ(__builtin_popcountl(KERNEL_BASE));
+
+	dprintf("Configuring TCR_EL1: %8lx\n", tcr);
 
 	WRITE_SPECIALREG(TCR_EL1, tcr);
 }
