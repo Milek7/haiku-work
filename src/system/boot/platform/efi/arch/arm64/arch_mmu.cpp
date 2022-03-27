@@ -495,6 +495,8 @@ arch_mmu_generate_post_efi_page_tables(size_t memory_map_size,
 		| currentMair.MaskOf(MAIR_NORMAL_WB));
 */
 
+	map_range(KERNEL_PMAP_BASE, 0, KERNEL_PMAP_SIZE - 1, ARMv8TranslationTableDescriptor::DefaultCodeAttribute | currentMair.MaskOf(MAIR_NORMAL_WB));
+
 	sort_address_ranges(gKernelArgs.virtual_allocated_range,
 		gKernelArgs.num_virtual_allocated_ranges);
 
