@@ -4,6 +4,12 @@ local platform ;
 
 local kernelArchSources =
 	arch_elf.cpp
+	arch_uart_pl011.cpp
+;
+
+local kernelGenericDriverSources =
+    debug_uart.cpp
+    debug_uart_8250.cpp
 ;
 
 kernelLibGenericSources =
@@ -23,6 +29,7 @@ for platform in [ MultiBootSubDirSetup efi ] {
 
 
 		BootMergeObject [ FGristFiles boot_arch_$(TARGET_KERNEL_ARCH).o ] :
+			$(kernelGenericDriverSources)
 			$(kernelArchSources)
 			$(kernelLibArchSources)
 			$(kernelLibGenericSources)
@@ -33,6 +40,8 @@ for platform in [ MultiBootSubDirSetup efi ] {
 
 		SEARCH on [ FGristFiles $(kernelArchSources) ]
 			= [ FDirName $(HAIKU_TOP) src system kernel arch arm64 ] ;
+		SEARCH on [ FGristFiles $(kernelGenericDriverSources) ]
+			= [ FDirName $(HAIKU_TOP) src system kernel arch generic ] ;
 		SEARCH on [ FGristFiles $(kernelLibGenericSources) ]
 			= [ FDirName $(HAIKU_TOP) src system libroot posix string arch generic ] ;
 		SEARCH on [ FGristFiles $(kernelLibArchSources) ]
