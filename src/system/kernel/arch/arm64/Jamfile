@@ -24,7 +24,10 @@ KernelMergeObject kernel_arch_arm64.o :
 	arch_real_time_clock.cpp
 	arch_platform.cpp
 	arch_asm.S
-	
+
+	VMSAv8TranslationMap.cpp
+	PMAPPhysicalPageMapper.cpp
+
 	:
 	$(TARGET_KERNEL_PIC_CCFLAGS) -Wno-unused
 	:
