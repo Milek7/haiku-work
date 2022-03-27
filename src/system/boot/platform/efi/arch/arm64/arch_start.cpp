@@ -223,7 +223,7 @@ arch_start_kernel(addr_t kernelEntry)
 		// Enter the kernel!
 		dprintf("Entering kernel!\n");
 		arch_enter_kernel(&gKernelArgs, kernelEntry,
-			gKernelArgs.cpu_kstack[0].start + gKernelArgs.cpu_kstack[0].size - 8);
+			gKernelArgs.cpu_kstack[0].start + gKernelArgs.cpu_kstack[0].size);
 	} else {
 		if (!kernel_acc)
 			dprintf("Kernel not accessible!\n");
