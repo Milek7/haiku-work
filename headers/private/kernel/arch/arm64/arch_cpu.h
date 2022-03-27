@@ -117,12 +117,15 @@ ADDRESS_TRANSLATE_FUNC(s1e1w)
 
 /* raw exception frames */
 struct iframe {
-	uint64			sp;
-	uint64			lr;
-	uint64			elr;
-	uint32			spsr;
-	uint32			esr;
-	uint64			x[30];
+	// return info
+	uint64 elr;
+	uint64 spsr;
+	uint64 x[31];
+	uint64 sp;
+
+	// exception info
+	uint64 esr;
+	uint64 far;
 };
 
 #ifdef __cplusplus
