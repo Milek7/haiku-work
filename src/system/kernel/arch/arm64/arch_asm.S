@@ -215,6 +215,15 @@ FUNCTION_END(_arch_cpu_user_strlcpy)
 	\param parameter The parameter to be passed to the function to be called.
 */
 FUNCTION(arch_debug_call_with_fault_handler):
-	mov		x0, xzr
-	ret
+	ldr x4, =fault
+	str x4, [x0, #CPU_ENT_fault_handler]
+	str x1, [x0, #CPU_ENT_fault_handler_stack_pointer]
+
+	mov x0, x3
+	br x2
+
+fault:
+	mov x0, sp
+	mov x1, #1
+	b longjmp
 FUNCTION_END(arch_debug_call_with_fault_handler)

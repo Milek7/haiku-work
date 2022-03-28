@@ -130,6 +130,9 @@ extern "C" void do_el1h_sync(iframe * frame)
 		case EXCP_DATA_ABORT_L:
 		case EXCP_DATA_ABORT:
 		{
+			bool write = (frame->esr & ISS_DATA_WnR) != 0;
+			bool known = false;
+
 			int initialLevel = VMSAv8TranslationMap::CalcStartLevel(48, 12);
 			phys_addr_t ptPa;
 			bool addrType = (frame->far & (1UL << 63)) != 0;
@@ -139,29 +142,56 @@ extern "C" void do_el1h_sync(iframe * frame)
 				ptPa = READ_SPECIALREG(TTBR0_EL1);
 
 			switch (frame->esr & ISS_DATA_DFSC_MASK) {
+				case ISS_DATA_DFSC_TF_L0:
+				case ISS_DATA_DFSC_TF_L1:
+				case ISS_DATA_DFSC_TF_L2:
+				case ISS_DATA_DFSC_TF_L3:
+					known = true;
+				break;
+
 				case ISS_DATA_DFSC_AFF_L1:
 				case ISS_DATA_DFSC_AFF_L2:
 				case ISS_DATA_DFSC_AFF_L3:
-				{
+					known = true;
 					if (fixup_entry(ptPa, initialLevel, frame->far, false))
 						return;
-				}
 				break;
 
 				case ISS_DATA_DFSC_PF_L1:
 				case ISS_DATA_DFSC_PF_L2:
 				case ISS_DATA_DFSC_PF_L3:
-				{
-					if ((frame->esr & ISS_DATA_WnR) != 0 && fixup_entry(ptPa, initialLevel, frame->far, true))
+					known = true;
+					if (write && fixup_entry(ptPa, initialLevel, frame->far, true))
 						return;
-				}
 				break;
+			}
+
+			if (known && debug_debugger_running()) {
+				Thread* thread = thread_get_current_thread();
+				if (thread != NULL) {
+					cpu_ent* cpu = &gCPU[smp_get_current_cpu()];
+					if (cpu->fault_handler != 0) {
+						debug_set_page_fault_info(frame->far, frame->elr, write ? DEBUG_PAGE_FAULT_WRITE : 0);
+						frame->elr = cpu->fault_handler;
+						frame->sp = cpu->fault_handler_stack_pointer;
+						return;
+					}
+
+					if (thread->fault_handler != 0) {
+						kprintf("ERROR: thread::fault_handler used in kernel debugger!\n");
+						debug_set_page_fault_info(frame->far, frame->elr, write ? DEBUG_PAGE_FAULT_WRITE : 0);
+						frame->elr = (addr_t)thread->fault_handler;
+						return;
+					}
+				}
+
+				panic("page fault in debugger without fault handler!");
 			}
 		}
 		break;
 	}
 
-	panic("do_el1h_sync");
+	panic("unhandled exception! FAR=%lx ELR=%lx ESR=%lx", frame->far, frame->elr, frame->esr);
 }
 
 extern "C" void do_el1h_error(iframe * frame)
