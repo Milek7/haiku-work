@@ -343,7 +343,7 @@ public:
 			*firstSpace = tmpChar;
 
 			if (command != NULL) {
-				kputchar('\n');
+				kputs("\r\n");
 				print_debugger_command_usage(command->name);
 			} else {
 				if (ambiguous)
@@ -430,12 +430,12 @@ public:
 						!= NULL) {
 					// spacing
 					if (column > 0 && column % columns == 0)
-						kputchar('\n');
+						kputs("\r\n");
 					column++;
 
 					kprintf("  %-*s", (int)longestName, command->name);
 				}
-				kputchar('\n');
+				kputs("\r\n");
 			}
 		}
 
@@ -466,7 +466,7 @@ read_line(char* buffer, int32 maxLength,
 			case '\n':
 			case '\r':
 				buffer[length++] = '\0';
-				kputchar('\n');
+				kputs("\r\n");
 				done = true;
 				break;
 			case '\t':
