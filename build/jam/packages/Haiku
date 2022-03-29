@@ -193,7 +193,7 @@ AddFilesToPackage data KeyboardLayouts ThinkPad
 
 # boot module links
 AddBootModuleSymlinksToPackage
-	acpi@x86,x86_64 ahci ata ata_adapter
+	acpi@x86,x86_64,arm64 ahci ata ata_adapter
 	bfs
 	config_manager
 	dpc
@@ -205,7 +205,7 @@ AddBootModuleSymlinksToPackage
 	nvme_disk
 	openpic@ppc
 	packagefs pci
-	fdt@riscv64,arm
+	fdt@riscv64,arm,arm64
 	scsi scsi_cd scsi_disk scsi_periph silicon_image_3112 highpoint_ide_pci
 	sdhci_pci
 	usb usb_disk <usb>ehci <usb>ohci <usb>uhci <usb>xhci
