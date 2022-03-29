@@ -14,12 +14,17 @@
 #include <string.h>
 
 #include <ACPI.h>
-#include <apic.h>
 #include <dpc.h>
 #include <KernelExport.h>
 #include <PCI.h>
 
 #include <safemode.h>
+
+#if defined(__i386__) || defined(__x86_64__)
+#include <apic.h>
+#define PIC_MODE 0
+#define APIC_MODE 1
+#endif
 
 extern "C" {
 #include "acpi.h"
@@ -37,9 +42,6 @@ extern "C" {
 #endif
 
 #define ERROR(x...) dprintf("acpi: " x)
-
-#define PIC_MODE 0
-#define APIC_MODE 1
 
 #define ACPI_DEVICE_ID_LENGTH	0x08
 
@@ -179,8 +181,6 @@ acpi_std_ops(int32 op,...)
 	switch (op) {
 		case B_MODULE_INIT:
 		{
-			ACPI_OBJECT arg;
-			ACPI_OBJECT_LIST parameter;
 			void *settings;
 			bool acpiDisabled = false;
 			AcpiGbl_CopyDsdtLocally = true;
@@ -232,6 +232,10 @@ acpi_std_ops(int32 op,...)
 
 			/* Install the default address space handlers. */
 
+#if defined(__i386__) || defined(__x86_64__)
+			ACPI_OBJECT arg;
+			ACPI_OBJECT_LIST parameter;
+
 			arg.Integer.Type = ACPI_TYPE_INTEGER;
 			arg.Integer.Value = apic_available() ? APIC_MODE : PIC_MODE;
 
@@ -239,6 +243,7 @@ acpi_std_ops(int32 op,...)
 			parameter.Pointer = &arg;
 
 			AcpiEvaluateObject(NULL, (ACPI_STRING)"\\_PIC", &parameter, NULL);
+#endif
 
 			if (checkAndLogFailure(AcpiEnableSubsystem(
 						ACPI_FULL_INITIALIZATION),

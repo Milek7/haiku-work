@@ -239,12 +239,14 @@ AcpiOsGetRootPointer()
 		if (acpiRootPointer != NULL)
 			sACPIRoot = *acpiRootPointer;
 
+#if defined(__i386__) || defined(__x86_64__)
 		if (sACPIRoot == 0) {
 			ACPI_PHYSICAL_ADDRESS address;
 			ACPI_STATUS status = AcpiFindRootPointer(&address);
 			if (status == AE_OK)
 				sACPIRoot = address;
 		}
+#endif
 	}
 	return sACPIRoot;
 #else

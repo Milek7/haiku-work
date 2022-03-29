@@ -191,7 +191,11 @@ struct mutex;
 /* ACPICA cache implementation is adequate. */
 #define ACPI_USE_LOCAL_CACHE
 
+#if defined(__i386__) || defined(__x86_64__)
 #define ACPI_FLUSH_CPU_CACHE() __asm __volatile("wbinvd");
+#else
+#define ACPI_FLUSH_CPU_CACHE()
+#endif
 
 /* Based on FreeBSD's due to lack of documentation */
 extern int AcpiOsAcquireGlobalLock(uint32 *lock);
