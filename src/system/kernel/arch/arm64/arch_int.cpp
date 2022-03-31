@@ -113,6 +113,7 @@ static bool fixup_entry(phys_addr_t ptPa, int level, addr_t va, bool wr)
 		}
 		if (wr && (*pte & kAttrSWDBM) != 0 && (*pte & kAttrAP2) != 0) {
 			atomic_and64((int64*)pte, ~kAttrAP2);
+			asm("tlbi vaae1is, %0 \n dsb ish"::"r"(va >> page_bits));
 			return true;
 		}
 	} else if (level < 3 && type == 0x3) {
