@@ -29,6 +29,7 @@ for platform in [ MultiBootSubDirSetup efi ] {
 		arch_timer.cpp
 		arch_cache.cpp
 		arch_dtb.cpp
+		arch_acpi.cpp
 		;
 
 	BootMergeObject boot_platform_efi_arm64.o :
