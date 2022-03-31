@@ -104,11 +104,16 @@ arch_debug_serial_early_boot_message(const char *string)
 status_t
 arch_debug_console_init(kernel_args *args)
 {
-	// As a last try, lets assume qemu's pl011 at a sane address
-	if (sArchDebugUART == NULL)
-		sArchDebugUART = arch_get_uart_pl011(KERNEL_PMAP_BASE + 0x9000000, 0x16e3600);
+	if (args->arch_args.uart.kind[0] != 0) {
+		// we expect that debug uart is already mapped into kernel virtual address space by the efi loader
+		addr_t base = args->arch_args.uart.regs.start;
+		int64 clock = args->arch_args.uart.clock;
 
-	// Oh well.
+		if (clock == 0)
+			clock = 0x16e3600;
+		sArchDebugUART = arch_get_uart_pl011(base, clock);
+	}
+
 	if (sArchDebugUART == NULL)
 		return B_ERROR;
 
