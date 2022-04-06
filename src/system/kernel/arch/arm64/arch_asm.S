@@ -155,6 +155,7 @@ EXCEPTION_HANDLER 0 el0_fiq intr_fiq_handler_el0
 EXCEPTION_HANDLER 0 el0_error do_el0_error
 
 FUNCTION(_arch_context_swap):
+	// save
 	stp x19, x20, [x0], #16
 	stp x21, x22, [x0], #16
 	stp x23, x24, [x0], #16
@@ -163,8 +164,14 @@ FUNCTION(_arch_context_swap):
 	stp x29, x30, [x0], #16
 
 	mov x2, sp
-	str x2, [x0]
+	str x2, [x0], #8
 
+	stp  d8,  d9, [x0], #16
+	stp d10, d11, [x0], #16
+	stp d12, d13, [x0], #16
+	stp d14, d15, [x0], #16
+
+	// restore
 	ldp x19, x20, [x1], #16
 	ldp x21, x22, [x1], #16
 	ldp x23, x24, [x1], #16
@@ -172,9 +179,15 @@ FUNCTION(_arch_context_swap):
 	ldp x27, x28, [x1], #16
 	ldp x29, x30, [x1], #16
 
-	ldr x2, [x1]
+	ldr x2, [x1], #8
 	mov sp, x2
 
+	ldp  d8,  d9, [x1], #16
+	ldp d10, d11, [x1], #16
+	ldp d12, d13, [x1], #16
+	ldp d14, d15, [x1], #16
+
+	// pass x29 as argument to thread entry function
 	mov x0, x29
 	ret
 FUNCTION_END(_arch_context_swap)
