@@ -130,6 +130,10 @@ pci_root_init(device_node* node, void** _cookie)
 	if (res < B_OK)
 		return res;
 
+	res = pci_init_deferred();
+	if (res < B_OK)
+		return res;
+
 	return B_OK;
 }
 
