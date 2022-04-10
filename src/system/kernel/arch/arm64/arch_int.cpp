@@ -20,6 +20,8 @@
 #include "VMSAv8TranslationMap.h"
 #include <string.h>
 
+#include "arch_int_gicv2.h"
+
 #define TRACE_ARCH_INT
 #ifdef TRACE_ARCH_INT
 #	define TRACE(x) dprintf x
@@ -31,12 +33,18 @@
 void
 arch_int_enable_io_interrupt(int irq)
 {
+	InterruptController *ic = InterruptController::Get();
+	if (ic != NULL)
+		ic->EnableInterrupt(irq);
 }
 
 
 void
 arch_int_disable_io_interrupt(int irq)
 {
+	InterruptController *ic = InterruptController::Get();
+	if (ic != NULL)
+		ic->DisableInterrupt(irq);
 }
 
 
@@ -58,6 +66,16 @@ arch_int_init(kernel_args *args)
 status_t
 arch_int_init_post_vm(kernel_args *args)
 {
+	InterruptController *ic = NULL;
+	if (strcmp(args->arch_args.intc.kind, INTC_KIND_GICV2) == 0) {
+		ic = new(std::nothrow) GICv2InterruptController(
+			args->arch_args.intc.regs1.start,
+			args->arch_args.intc.regs2.start);
+	}
+
+	if (ic == NULL)
+		return B_ERROR;
+
 	return B_OK;
 }
 
