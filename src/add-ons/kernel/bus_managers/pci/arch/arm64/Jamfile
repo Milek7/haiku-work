@@ -5,6 +5,7 @@ UsePrivateHeaders kernel [ FDirName kernel arch $(TARGET_ARCH) ]
 	[ FDirName kernel boot platform $(HAIKU_BOOT_PLATFORM) ] ;
 
 SubDirHdrs $(HAIKU_TOP) src add-ons kernel bus_managers acpi acpica include ;
+SubDirHdrs $(HAIKU_TOP) src system kernel arch generic ;
 
 KernelStaticLibrary pci_arch_bus_manager :
 	pci_controller.cpp
