@@ -12,6 +12,7 @@
 
 #include <util/FixedWidthPointer.h>
 #include <boot/uart.h>
+#include <boot/interrupt_controller.h>
 
 
 #define _PACKED __attribute__((packed))
@@ -21,7 +22,8 @@ typedef struct {
 	// needed for UEFI, otherwise kernel acpi support can't find ACPI root
 	FixedWidthPointer<void> acpi_root;
 	FixedWidthPointer<void> fdt;
-	uart_info		uart;
+	uart_info uart;
+	intc_info intc;
 
 	uint64 phys_pgdir;
 	uint64 vir_pgdir;
