@@ -83,7 +83,7 @@ static uint32 sCpuRendezvous2;
 static uint32 sCpuRendezvous3;
 
 static int32 main2(void *);
-
+static int32 cputest(void *);
 
 static void
 non_boot_cpu_init(void* args, int currentCPU)
@@ -234,6 +234,10 @@ _start(kernel_args *bootKernelArgs, int currentCPU)
 			B_NORMAL_PRIORITY, NULL);
 		resume_thread(thread);
 
+		thread_id threadtest = spawn_kernel_thread(&cputest, "cputest",
+			B_NORMAL_PRIORITY, NULL);
+		resume_thread(threadtest);
+
 		// We're ready to start the scheduler and enable interrupts on all CPUs.
 		scheduler_enable_scheduling();
 
@@ -287,6 +291,46 @@ _start(kernel_args *bootKernelArgs, int currentCPU)
 	return 0;
 }
 
+#define TESTSZ 30000
+
+static int32
+cputest(void* /*unused*/)
+{
+	uint64 *buf = new uint64[TESTSZ];
+	volatile uint64 x = 0;
+	while (1) {
+		asm("nop" : : : "memory");
+		buf[0] = 0xaabbccddaabbccdd;
+		for (int j = 0; j < 100; j++) {
+			for (int i = 1; i < TESTSZ; i++) {
+				buf[i] = buf[i - 1];
+				buf[i] += i + i;
+				buf[i] ^= 0xceeddeec;
+				buf[i] *= 3;
+				buf[i] <<= 3;
+				buf[i] ^= buf[i - 1];
+				asm("nop" : : : "memory");
+			}
+			buf[0] = buf[TESTSZ-1];
+		}
+		uint64 restest = 0;
+		for (int i = 0; i < TESTSZ; i++) {
+			restest += buf[i];
+			if (restest & (1UL << 63))
+				restest = (restest << 1) | 1;
+			else
+				restest = (restest << 1);
+		}
+		if (x == 0) {
+			x = restest;
+		} else if (x != restest) {
+			panic("RESTEST");
+		} else {
+			dprintf("OK: %lx\n", restest);
+		}
+	}
+	return 0;
+}
 
 static int32
 main2(void* /*unused*/)

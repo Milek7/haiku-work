@@ -24,6 +24,7 @@ arch_timer_set_hardware_timer(bigtime_t timeout)
 	if (timeout > sTimerMaxInterval)
 		timeout = sTimerMaxInterval;
 
+	//dprintf("armt %lu\n", timeout);
 	WRITE_SPECIALREG(CNTP_TVAL_EL0, timeout * sTimerTicksUS);
 	WRITE_SPECIALREG(CNTP_CTL_EL0, TIMER_ARMED);
 }
@@ -32,6 +33,7 @@ arch_timer_set_hardware_timer(bigtime_t timeout)
 void
 arch_timer_clear_hardware_timer()
 {
+	//dprintf("cleart\n");
 	WRITE_SPECIALREG(CNTP_CTL_EL0, TIMER_MASKED);
 }
 
@@ -39,7 +41,11 @@ int32
 arch_timer_interrupt(void *data)
 {
 	WRITE_SPECIALREG(CNTP_CTL_EL0, TIMER_MASKED);
-	return timer_interrupt();
+	//dprintf("timer.. ");
+	//return B_HANDLED_INTERRUPT;
+	timer_interrupt();
+	//dprintf("e.\n");
+	return B_HANDLED_INTERRUPT;
 }
 
 int

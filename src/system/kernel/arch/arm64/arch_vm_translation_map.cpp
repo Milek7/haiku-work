@@ -20,8 +20,6 @@ arch_vm_translation_map_create_map(bool kernel, VMTranslationMap** _map)
 	phys_addr_t pt = 0;
 	if (kernel) {
 		pt = READ_SPECIALREG(TTBR1_EL1);
-	} else {
-		panic("arch_vm_translation_map_create_map user not implemented");
 	}
 
 	*_map = new(std::nothrow) VMSAv8TranslationMap(kernel, pt, 12, 48, 1);

@@ -8,15 +8,18 @@
 #include <boot/kernel_args.h>
 #include <device_manager.h>
 #include <kscheduler.h>
+#include <ksyscalls.h>
 #include <interrupt_controller.h>
 #include <smp.h>
 #include <thread.h>
 #include <timer.h>
+#include <util/AutoLock.h>
 #include <util/DoublyLinkedList.h>
 #include <util/kernel_cpp.h>
 #include <vm/vm.h>
 #include <vm/vm_priv.h>
 #include <vm/VMAddressSpace.h>
+#include "syscall_numbers.h"
 #include "VMSAv8TranslationMap.h"
 #include <string.h>
 
@@ -141,11 +144,23 @@ static bool fixup_entry(phys_addr_t ptPa, int level, addr_t va, bool wr)
 	return false;
 }
 
-extern "C" void do_el1h_sync(iframe * frame)
+void after_exception()
 {
+	Thread* thread = thread_get_current_thread();
+	if (thread->cpu->invoke_scheduler) {
+		disable_interrupts();
+		SpinLocker schedulerLocker(thread->scheduler_lock);
+		scheduler_reschedule(B_THREAD_READY);
+	}
+}
+
+extern "C" void do_sync_handler(iframe * frame)
+{
+	bool isExec = false;
 	switch (ESR_ELx_EXCEPTION(frame->esr)) {
 		case EXCP_INSN_ABORT_L:
 		case EXCP_INSN_ABORT:
+			isExec = true;
 		case EXCP_DATA_ABORT_L:
 		case EXCP_DATA_ABORT:
 		{
@@ -185,7 +200,10 @@ extern "C" void do_el1h_sync(iframe * frame)
 				break;
 			}
 
-			if (known && debug_debugger_running()) {
+			if (!known)
+				break;
+
+			if (debug_debugger_running()) {
 				Thread* thread = thread_get_current_thread();
 				if (thread != NULL) {
 					cpu_ent* cpu = &gCPU[smp_get_current_cpu()];
@@ -195,55 +213,107 @@ extern "C" void do_el1h_sync(iframe * frame)
 						frame->sp = cpu->fault_handler_stack_pointer;
 						return;
 					}
-
-					if (thread->fault_handler != 0) {
-						kprintf("ERROR: thread::fault_handler used in kernel debugger!\n");
-						debug_set_page_fault_info(frame->far, frame->elr, write ? DEBUG_PAGE_FAULT_WRITE : 0);
-						frame->elr = (addr_t)thread->fault_handler;
-						return;
-					}
 				}
-
-				panic("page fault in debugger without fault handler!");
 			}
+
+			Thread *thread = thread_get_current_thread();
+			ASSERT(thread);
+
+			bool isUser = (frame->spsr & PSR_M_MASK) == PSR_M_EL0t;
+
+			if ((frame->spsr & PSR_I) != 0) {
+				// interrupts disabled
+				uintptr_t handler = reinterpret_cast<uintptr_t>(thread->fault_handler);
+				if (thread->fault_handler != 0) {
+					frame->elr = handler;
+					return;
+				}
+			} else if (thread->page_faults_allowed != 0) {
+				dprintf("PF: %lx\n", frame->far);
+				enable_interrupts();
+				addr_t ret = 0;
+				vm_page_fault(frame->far, frame->elr, write, isExec, isUser, &ret);
+				if (ret != 0)
+					frame->elr = ret;
+				return;
+			}
+
+			dprintf("X6=%lx\nX8=%lx\nX9=%lx\n", frame->x[6], frame->x[8], frame->x[9]);
+			panic("unhandled pagefault! FAR=%lx ELR=%lx ESR=%lx", frame->far, frame->elr, frame->esr);
+			break;
 		}
-		break;
+/*
+		case EXCP_SVC64:
+		{
+			uint32 imm = (frame->esr & 0xffff);
+
+			uint32 count = imm & 0x1f;
+			uint32 syscall = imm >> 5;
+
+			uint64_t args[20];
+			if (count > 20) {
+				frame->x[0] = B_ERROR;
+				return;
+			}
+
+			memset(args, 0, sizeof(args));
+			memcpy(args, frame->x, (count < 8 ? count : 8) * 8);
+
+			if (count > 8) {
+				if (!IS_USER_ADDRESS(frame->sp) || user_memcpy(&args[8], (void*)frame->sp, (count - 8) * 8) != B_OK) {
+					frame->x[0] = B_BAD_ADDRESS;
+					return;
+				}
+			}
+
+			thread_at_kernel_entry(system_time());
+
+			enable_interrupts();
+			syscall_dispatcher(syscall, (void*)args, &frame->x[0]);
+
+			{
+				disable_interrupts();
+				atomic_and(&thread_get_current_thread()->flags, ~THREAD_FLAGS_SYSCALL_RESTARTED);
+				if ((thread_get_current_thread()->flags
+					& (THREAD_FLAGS_SIGNALS_PENDING
+					| THREAD_FLAGS_DEBUG_THREAD
+					| THREAD_FLAGS_TRAP_FOR_CORE_DUMP)) != 0) {
+					enable_interrupts();
+					thread_at_kernel_exit();
+				} else {
+					thread_at_kernel_exit_no_signals();
+				}
+				if ((THREAD_FLAGS_RESTART_SYSCALL & thread_get_current_thread()->flags) != 0) {
+					panic("syscall restart");
+				}
+			}
+
+			return;
+		}
+*/
 	}
 
-	panic("unhandled exception! FAR=%lx ELR=%lx ESR=%lx", frame->far, frame->elr, frame->esr);
+	dprintf("SPSR=%lx SP=%lx LR=%lx X0=%lx X4=%lx\n", frame->spsr, frame->sp, frame->lr, frame->x[0], frame->x[4]);
+	panic("unhandled exception! FAR=%lx ELR=%lx ESR=%lx (EC=%lx)", frame->far, frame->elr, frame->esr, (frame->esr >> 26) & 0x3f);
 }
 
-extern "C" void do_el1h_error(iframe * frame)
+extern "C" void do_error_handler(iframe * frame)
 {
-	panic("do_el1h_error");
+	panic("unhandled error! FAR=%lx ELR=%lx ESR=%lx", frame->far, frame->elr, frame->esr);
 }
 
-extern "C" void do_el0_sync(iframe * frame)
+extern "C" void do_irq_handler(iframe * frame)
 {
-	panic("do_el0_sync");
+	dprintf("Iip: %lx %lx\n", (uint64_t)frame->elr, frame->x[0]);
+	InterruptController *ic = InterruptController::Get();
+	if (ic != NULL)
+		ic->HandleInterrupt();
+
+	after_exception();
+	dprintf("Oip: %lx %lx\n", (uint64_t)frame->elr, frame->x[0]);
 }
 
-extern "C" void do_el0_error(iframe * frame)
+extern "C" void do_fiq_handler(iframe * frame)
 {
-	panic("do_el0_error");
-}
-
-extern "C" void intr_irq_handler_el0(iframe * frame)
-{
-	panic("intr_irq_handler_el0");
-}
-
-extern "C" void intr_irq_handler_el1(iframe * frame)
-{
-	panic("intr_irq_handler_el1");
-}
-
-extern "C" void intr_fiq_handler_el0(iframe * frame)
-{
-	panic("intr_fiq_handler_el0");
-}
-
-extern "C" void intr_fiq_handler_el1(iframe * frame)
-{
-	panic("intr_fiq_handler_el1");
+	panic("do_fiq_handler");
 }

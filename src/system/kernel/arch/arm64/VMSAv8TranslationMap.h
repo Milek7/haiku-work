@@ -62,6 +62,8 @@ public:
 	static uint64_t GetMemoryAttr(uint32 attributes, uint32 memoryType, bool isKernel);
 	static int CalcStartLevel(int vaBits, int pageBits);
 
+	phys_addr_t _Addr() { return fPageTable; }
+
 private:
     bool fIsKernel;
     phys_addr_t fPageTable;

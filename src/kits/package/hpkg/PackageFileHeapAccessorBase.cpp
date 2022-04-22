@@ -275,6 +275,7 @@ PackageFileHeapAccessorBase::DecompressChunkData(void* compressedDataBuffer,
 		compressedDataBuffer, compressedSize, uncompressedDataBuffer,
 		uncompressedSize, actualSize, fDecompressionAlgorithm->parameters);
 	if (error != B_OK) {
+//*((volatile int*)0x666) = 10;	
 		fErrorOutput->PrintError("Failed to decompress chunk data: %s\n",
 			strerror(error));
 		return error;

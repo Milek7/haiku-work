@@ -39,7 +39,7 @@ VMSAv8TranslationMap::~VMSAv8TranslationMap()
 {
 	dprintf("~VMSAv8TranslationMap\n");
 
-	FreeTable(fPageTable, fInitialLevel);
+	//FreeTable(fPageTable, fInitialLevel);
 }
 
 int VMSAv8TranslationMap::CalcStartLevel(int vaBits, int pageBits)
@@ -125,6 +125,7 @@ void VMSAv8TranslationMap::FreeTable(phys_addr_t ptPa, int level)
 	}
 
 	vm_page* page = vm_lookup_page(ptPa >> fPageBits);
+	dprintf("page %lx\n", (uint64_t)page);
 	vm_page_set_state(page, PAGE_STATE_FREE);
 }
 
@@ -223,28 +224,27 @@ void VMSAv8TranslationMap::MapRange(phys_addr_t ptPa, int level, addr_t va, phys
 		retry:
 			uint64_t oldPte = atomic_get64((int64*)pte);
 
-			uint64_t newPte = 0;
-			if (action == VMAction::MAP) {
-				newPte = MakeBlock(targetPa, level, attr);
-			} else if (action == VMAction::SET_ATTR) {
-				newPte = MakeBlock(oldPte & kPteAddrMask, level, MoveAttrFlags(attr, oldPte));
-			} else if (action == VMAction::CLEAR_FLAGS) {
-				newPte = MakeBlock(oldPte & kPteAddrMask, level, ClearAttrFlags(oldPte, attr));
-			} else if (action == VMAction::UNMAP) {
-				newPte = 0;
-				tmp_pte = oldPte;
-			}
+			if (action == VMAction::MAP || (oldPte & 0x1) != 0) {
+				uint64_t newPte = 0;
+				if (action == VMAction::MAP) {
+					newPte = MakeBlock(targetPa, level, attr);
+				} else if (action == VMAction::SET_ATTR) {
+					newPte = MakeBlock(oldPte & kPteAddrMask, level, MoveAttrFlags(attr, oldPte));
+				} else if (action == VMAction::CLEAR_FLAGS) {
+					newPte = MakeBlock(oldPte & kPteAddrMask, level, ClearAttrFlags(oldPte, attr));
+				} else if (action == VMAction::UNMAP) {
+					newPte = 0;
+					tmp_pte = oldPte;
+				}
 
-			// FIXME: this might not be enough on real hardware with SMP for some cases
-			if ((uint64_t)atomic_test_and_set64((int64*)pte, newPte, oldPte) != oldPte)
-				goto retry;
+				// FIXME: this might not be enough on real hardware with SMP for some cases
+				if ((uint64_t)atomic_test_and_set64((int64*)pte, newPte, oldPte) != oldPte)
+					goto retry;
 
-			if (action != VMAction::MAP)
-				ASSERT(oldPte & 0x1);
-
-			if (level < 3 && (oldPte & 0x3) == 0x3) {
-				// If we're replacing existing pagetable clean it up
-				FreeTable(oldPte & kPteAddrMask, level);
+				if (level < 3 && (oldPte & 0x3) == 0x3) {
+					// If we're replacing existing pagetable clean it up
+					FreeTable(oldPte & kPteAddrMask, level);
+				}
 			}
 		} else {
 			// Otherwise handle mapping in next-level table
@@ -302,17 +302,20 @@ uint64_t VMSAv8TranslationMap::GetMemoryAttr(uint32 attributes, uint32 memoryTyp
 	if (!isKernel)
 		attr |= kAttrNG;
 
+	attr |= kAttrAF;
+
 	if ((attributes & B_EXECUTE_AREA) == 0)
 		attr |= kAttrUXN;
 	if ((attributes & B_KERNEL_EXECUTE_AREA) == 0)
 		attr |= kAttrPXN;
 
 	if ((attributes & B_READ_AREA) == 0) {
-		attr |= kAttrAP2;
+		//attr |= kAttrAP2;
 		if ((attributes & B_KERNEL_WRITE_AREA) != 0)
 			attr |= kAttrSWDBM;
 	} else {
-		attr |= kAttrAP2 | kAttrAP1;
+		//attr |= kAttrAP2;
+		attr |= kAttrAP1;
 		if ((attributes & B_WRITE_AREA) != 0)
 			attr |= kAttrSWDBM;
 	}
@@ -341,6 +344,12 @@ status_t VMSAv8TranslationMap::Map(
 	ASSERT(ValidateVa(va));
 
 	uint64_t attr = GetMemoryAttr(attributes, memoryType, fIsKernel);
+
+	if (!fPageTable) {
+		vm_page *page = vm_page_allocate_page(reservation, PAGE_STATE_WIRED | VM_PAGE_ALLOC_CLEAR);
+		fPageTable = page->physical_page_number << fPageBits;
+	}
+
 	MapRange(fPageTable, fInitialLevel, va & vaMask, pa, B_PAGE_SIZE, VMAction::MAP, attr, reservation);
 
 	return B_OK;

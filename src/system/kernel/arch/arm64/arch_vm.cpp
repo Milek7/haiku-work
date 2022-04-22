@@ -76,13 +76,13 @@ arch_vm_supports_protection(uint32 protection)
 void
 arch_vm_unset_memory_type(VMArea *area)
 {
-	dprintf("arch_vm_unset_memory_type\n");
+	//dprintf("arch_vm_unset_memory_type\n");
 }
 
 
 status_t
 arch_vm_set_memory_type(VMArea *area, phys_addr_t physicalBase, uint32 type)
 {
-	dprintf("arch_vm_set_memory_type %lx %x\n", physicalBase, type);
+	//dprintf("arch_vm_set_memory_type %lx %x\n", physicalBase, type);
 	return B_OK;
 }

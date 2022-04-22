@@ -1080,8 +1080,11 @@ _kern_read(int fd, off_t pos, void* buffer, size_t length)
 
 	SyscallFlagUnsetter _;
 
-	if (descriptor->ops->fd_read == NULL)
+	if (((uintptr_t)descriptor->ops->fd_read) != 0xffffffff80111a30) {
+		dprintf("%lx %lx\n", (uint64_t)descriptor, (uint64_t)descriptor->ops);
+		panic("NOOO");
 		return B_BAD_VALUE;
+	}
 
 	ssize_t bytesRead = descriptor->ops->fd_read(descriptor, pos, buffer,
 		&length);

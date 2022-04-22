@@ -15,8 +15,8 @@
 
 #include "utility.h"
 
-
-//#define TRACE_RLD
+#define RUNTIME_LOADER_TRACING 1
+#define TRACE_RLD
 #ifdef TRACE_RLD
 #	define TRACE(x) dprintf x
 #else

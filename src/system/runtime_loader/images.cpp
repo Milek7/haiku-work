@@ -334,8 +334,10 @@ map_image(int fd, char const* path, image_t* image, bool fixed)
 
 	// Check whether the segments have an unreasonable amount of unused space
 	// inbetween.
-	if (reservedSize > length + MAX_PAGE_SIZE * 2)
-		return B_BAD_DATA;
+	if (reservedSize > length + MAX_PAGE_SIZE * 2) {
+		TRACE(("bad data: %lx, %lx, %lx\n", reservedSize, length, MAX_PAGE_SIZE));
+//		return B_BAD_DATA;
+	}
 
 	// reserve that space and allocate the areas from that one
 	if (_kern_reserve_address_range(&reservedAddress, addressSpecifier,
